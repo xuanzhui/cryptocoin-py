@@ -21,6 +21,9 @@ from hashlib import sha256
 # 'XTN' => "Bitcoin", "testnet3"
 NET_CODE = 'XTN'
 
+PRI_KEY_MIN = int('0x1', 16)
+PRI_KEY_MAX = int('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140', 16)
+
 
 def address_from_pri_hex(pri_hex):
     my_key = Key(secret_exponent=int(pri_hex, 16),
@@ -29,10 +32,20 @@ def address_from_pri_hex(pri_hex):
     return my_key.address()
 
 
-def gen_key_pair():
+def _gen_pri_key():
     sec = os.urandom(32)
     pri_hex = binascii.hexlify(sec).decode()
-    my_key = Key(secret_exponent=int(pri_hex, 16),
+
+    key = int(pri_hex, 16)
+    if key < PRI_KEY_MIN or key > PRI_KEY_MAX:
+        raise ValueError('error on generating private key')
+
+    return key, pri_hex
+
+
+def gen_key_pair():
+    key, pri_hex = _gen_pri_key()
+    my_key = Key(secret_exponent=key,
                  prefer_uncompressed=False, netcode=NET_CODE)
 
     return pri_hex, my_key.address()
@@ -45,9 +58,9 @@ def address_from_wif(wif):
 
 
 def gen_key_pair_as_wif():
-    sec = os.urandom(32)
-    pri_hex = binascii.hexlify(sec).decode()
-    my_key = Key(secret_exponent=int(pri_hex, 16),
+    key, pri_hex = _gen_pri_key()
+
+    my_key = Key(secret_exponent=key,
                  prefer_uncompressed=False, netcode=NET_CODE)
 
     return my_key.wif(), my_key.address()
