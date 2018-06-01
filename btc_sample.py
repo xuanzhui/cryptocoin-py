@@ -19,7 +19,7 @@ from hashlib import sha256
 
 # 'BTC' => "Bitcoin", "mainnet"
 # 'XTN' => "Bitcoin", "testnet3"
-NET_CODE = 'XTN'
+NET_CODE = 'BTC'
 
 PRI_KEY_MIN = int('0x1', 16)
 PRI_KEY_MAX = int('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140', 16)
@@ -117,28 +117,28 @@ if __name__ == '__main__':
     print('private key in hex format:', pri_hex)
     print('address from compressed public key:', address)
 
-    print('address from private key:', address_from_pri_hex(pri_hex))
-
-    wif_key, address = gen_key_pair_as_wif()
-    print('private key in wallet import format:', wif_key)
-    print('address from compressed public key:', address)
-
-    print('address from private key:', address_from_wif(wif_key))
-
-    tx_ins = [('e7c8e9c6db79a665bbdffd03adaff22ceeb975b00480797561a736de4b5ef575', 0, 20000000,
-               'miMz95qmcq3ZHVY6UVQJasMRU2RoxtRaU8'),
-              ('cf60e01bfb63b18bc95d9674f026c4109c5215accfee21d9adb5c300c41cce84', 1, 63916800,
-               'miMz95qmcq3ZHVY6UVQJasMRU2RoxtRaU8')]
-    in_keys = ['==>private key in hex format for first input',
-               '==>private key in hex format for second input']
-    tx_outs = [(25000000, 'n3yCWzctsFspunWTKWfBACWvM7ffX3xZLd'),
-               (58875500, 'miMz95qmcq3ZHVY6UVQJasMRU2RoxtRaU8')]
-
-    raw_hex, tx_id = p2pkh_tx(tx_ins, in_keys, tx_outs)
-    print('signed raw hex:')
-    print(raw_hex)
-    print('txn id/hash:')
-    print(tx_id)
-
-    print('calculated txn id:')
-    print(calculate_txid_from_raw_hex(raw_hex))
+    # print('address from private key:', address_from_pri_hex(pri_hex))
+    #
+    # wif_key, address = gen_key_pair_as_wif()
+    # print('private key in wallet import format:', wif_key)
+    # print('address from compressed public key:', address)
+    #
+    # print('address from private key:', address_from_wif(wif_key))
+    #
+    # tx_ins = [('e7c8e9c6db79a665bbdffd03adaff22ceeb975b00480797561a736de4b5ef575', 0, 20000000,
+    #            'miMz95qmcq3ZHVY6UVQJasMRU2RoxtRaU8'),
+    #           ('cf60e01bfb63b18bc95d9674f026c4109c5215accfee21d9adb5c300c41cce84', 1, 63916800,
+    #            'miMz95qmcq3ZHVY6UVQJasMRU2RoxtRaU8')]
+    # in_keys = ['==>private key in hex format for first input',
+    #            '==>private key in hex format for second input']
+    # tx_outs = [(25000000, 'n3yCWzctsFspunWTKWfBACWvM7ffX3xZLd'),
+    #            (58875500, 'miMz95qmcq3ZHVY6UVQJasMRU2RoxtRaU8')]
+    #
+    # raw_hex, tx_id = p2pkh_tx(tx_ins, in_keys, tx_outs)
+    # print('signed raw hex:')
+    # print(raw_hex)
+    # print('txn id/hash:')
+    # print(tx_id)
+    #
+    # print('calculated txn id:')
+    # print(calculate_txid_from_raw_hex(raw_hex))
