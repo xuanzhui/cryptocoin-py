@@ -16,6 +16,7 @@ from pycoin.ui import standard_tx_out_script
 from pycoin.tx.pay_to import build_hash160_lookup
 from pycoin.serialize import h2b_rev
 from hashlib import sha256
+import requests
 
 # 'BTC' => "Bitcoin", "mainnet"
 # 'XTN' => "Bitcoin", "testnet3"
@@ -112,6 +113,23 @@ def estimate_p2pkh_tx_bytes(vin, vout, is_compressed=True):
         return vin * 180 + vout * 34 + 10 + vin
 
 
+def recommend_satoshi_per_byte():
+    recommend = 20
+
+    try:
+        resp = requests.get('https://bitcoinfees.earn.com/api/v1/fees/recommended')
+
+        if resp.status_code == 200:
+            fees = resp.json()
+            if fees.get('halfHourFee'):
+                recommend = fees.get('halfHourFee')
+
+    except Exception as e:
+        print('fail to get recommend fee, ', e)
+
+    return recommend
+
+
 if __name__ == '__main__':
     pri_hex, address = gen_key_pair()
     print('private key in hex format:', pri_hex)
@@ -125,6 +143,7 @@ if __name__ == '__main__':
     #
     # print('address from private key:', address_from_wif(wif_key))
     #
+    # (utxo id, utxo index, balance in satoshi, sender address)
     # tx_ins = [('e7c8e9c6db79a665bbdffd03adaff22ceeb975b00480797561a736de4b5ef575', 0, 20000000,
     #            'miMz95qmcq3ZHVY6UVQJasMRU2RoxtRaU8'),
     #           ('cf60e01bfb63b18bc95d9674f026c4109c5215accfee21d9adb5c300c41cce84', 1, 63916800,
