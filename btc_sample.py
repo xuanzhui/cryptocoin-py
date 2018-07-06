@@ -12,8 +12,8 @@ from pycoin.tx.Tx import Tx, SIGHASH_ALL
 from pycoin.tx.TxIn import TxIn
 from pycoin.tx.TxOut import TxOut
 from pycoin.tx.Spendable import Spendable
-from pycoin.ui import standard_tx_out_script
-from pycoin.tx.pay_to import build_hash160_lookup
+from pycoin.ui import standard_tx_out_script, address_for_pay_to_script, script_obj_from_address
+from pycoin.tx.pay_to import build_hash160_lookup, ScriptMultisig
 from pycoin.serialize import h2b_rev
 from hashlib import sha256
 import requests
@@ -67,7 +67,8 @@ def gen_key_pair_as_wif():
     return my_key.wif(), my_key.address()
 
 
-def p2pkh_tx(tx_ins, in_keys, tx_outs):
+# p2pkh p2sh
+def legacy_tx(tx_ins, in_keys, tx_outs):
     _txs_in = []
     _un_spent = []
     for tx_id, idx, balance, address in tx_ins:
@@ -75,20 +76,21 @@ def p2pkh_tx(tx_ins, in_keys, tx_outs):
         tx_id_b = h2b_rev(tx_id)
         _txs_in.append(TxIn(tx_id_b, idx))
 
-        _un_spent.append(Spendable(balance, standard_tx_out_script(address), tx_id_b, idx))
+        _un_spent.append(Spendable(balance, script_obj_from_address(address, netcodes=[NET_CODE]).script(),
+                                   tx_id_b, idx))
 
     _txs_out = []
     for balance, receiver_address in tx_outs:
-        _txs_out.append(TxOut(balance, standard_tx_out_script(receiver_address)))
+        _txs_out.append(TxOut(balance, script_obj_from_address(receiver_address, netcodes=[NET_CODE]).script()))
 
     version, lock_time = 1, 0
     tx = Tx(version, _txs_in, _txs_out, lock_time)
     tx.set_unspents(_un_spent)
 
     solver = build_hash160_lookup([int(pri_hex, 16) for pri_hex in in_keys])
-    signed_tx = tx.sign(solver, hash_type=SIGHASH_ALL)
+    tx.sign(solver, hash_type=SIGHASH_ALL)
 
-    return signed_tx.as_hex(), signed_tx.id()
+    return tx.as_hex(), tx.id()
 
 
 def calculate_txid_from_raw_hex(raw_hex):
@@ -130,10 +132,77 @@ def recommend_satoshi_per_byte():
     return recommend
 
 
+# return address and redeem script
+def get_multisig_address(m, pub_keys):
+    pay_to_multisig_script = ScriptMultisig(m, pub_keys).script()
+    return address_for_pay_to_script(pay_to_multisig_script, netcode=NET_CODE), pay_to_multisig_script.hex()
+
+
+def gen_2of3_multisig_key_pair():
+    key_pairs = []
+    for i in range(0, 3):
+        key, pri_hex = _gen_pri_key()
+        my_key = Key(secret_exponent=key,
+                     prefer_uncompressed=False, netcode=NET_CODE)
+
+        # return wif or hex format, use your own strategy
+        key_pairs.append((my_key.wif(), my_key.sec_as_hex()))
+
+    return get_multisig_address(2, [binascii.unhexlify(key[1]) for key in key_pairs]), key_pairs
+
+
+# here assumes the inputs are from the same multisig address for simplicity, this is of course not mandatory
+# the key point is that if an input comes from multisig address, it has to be signed multiple times
+def spend_multisig_fund(tx_ins, partial_keys, tx_outs):
+    _txs_in = []
+    _un_spent = []
+    for tx_id, idx, balance, address in tx_ins:
+        # must h2b_rev NOT h2b
+        tx_id_b = h2b_rev(tx_id)
+        _txs_in.append(TxIn(tx_id_b, idx))
+
+        _un_spent.append(Spendable(balance, script_obj_from_address(address, netcodes=[NET_CODE]).script(),
+                                   tx_id_b, idx))
+
+    _txs_out = []
+    for balance, receiver_address in tx_outs:
+        _txs_out.append(TxOut(balance, script_obj_from_address(receiver_address, netcodes=[NET_CODE]).script()))
+
+    version, lock_time = 1, 0
+    tx = Tx(version, _txs_in, _txs_out, lock_time)
+    tx.set_unspents(_un_spent)
+
+    for i in range(0, len(tx_ins)):
+        # for pkh input, for each is not required
+
+        for wif_key in partial_keys:
+            solver = build_hash160_lookup([Key.from_text(wif_key).secret_exponent()])
+            # tx.sign_tx_in(solver, i, tx.unspents[i].script, hash_type=SIGHASH_ALL)
+            tx.sign(solver, hash_type=SIGHASH_ALL)
+
+    return tx.as_hex(), tx.id()
+
+
 if __name__ == '__main__':
-    pri_hex, address = gen_key_pair()
-    print('private key in hex format:', pri_hex)
-    print('address from compressed public key:', address)
+    # mulsig_info, key_pairs = gen_2of3_multisig_key_pair()
+    # print(mulsig_info)
+    # print(key_pairs)
+
+    tx_ins = [('3e0594b046d2109756668d6a2d8fcf25390aeacc00f92087498e286aa8171a03', 0, 200000,
+               '3P5ifvQge9pddxVDQQJW7Byk9HKFAWiA5i')]
+    partial_keys = ['KyF51MJJS2PHjMXqsH8NcCArMQmBGnHhniDA63hF77yHRDH3ei14',
+                    'L3srvDvPRZQHGR6qHiu5uai3Z9hxopQQcpVavwZrcWWHYRGPMNZt']
+    tx_outs = [(198000, '17SRgFPdFRVdMGxcMkCBCXPvNnCPLg9gWe')]
+
+    raw_hex, tx_id = spend_multisig_fund(tx_ins, partial_keys, tx_outs)
+    print('signed raw hex:')
+    print(raw_hex)
+    print('txn id/hash:')
+    print(tx_id)
+
+    # pri_hex, address = gen_key_pair()
+    # print('private key in hex format:', pri_hex)
+    # print('address from compressed public key:', address)
 
     # print('address from private key:', address_from_pri_hex(pri_hex))
     #
