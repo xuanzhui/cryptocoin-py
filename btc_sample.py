@@ -12,8 +12,8 @@ from pycoin.tx.Tx import Tx, SIGHASH_ALL
 from pycoin.tx.TxIn import TxIn
 from pycoin.tx.TxOut import TxOut
 from pycoin.tx.Spendable import Spendable
-from pycoin.ui import standard_tx_out_script, address_for_pay_to_script, script_obj_from_address
-from pycoin.tx.pay_to import build_hash160_lookup, ScriptMultisig, build_p2sh_lookup
+from pycoin.ui import address_for_pay_to_script, script_obj_from_address
+from pycoin.tx.pay_to import build_hash160_lookup, ScriptMultisig, build_p2sh_lookup, ScriptPayToAddressWit
 from pycoin.serialize import h2b_rev
 from hashlib import sha256
 import requests
@@ -67,10 +67,9 @@ def gen_key_pair_as_wif():
     return my_key.wif(), my_key.address()
 
 
-# p2pkh p2sh
-def legacy_tx(tx_ins, in_keys, tx_outs):
+def spend_pkh_fund(tx_ins, in_keys, tx_outs):
     """
-    sign p2pkh p2sh transaction
+    p2pkh address send to p2pkh p2sh transaction
     :param tx_ins: list with tuple(tx_id, idx, balance, address)
     :param in_keys: list of private keys in hex format corresponding to each input
     :param tx_outs: balance, receiver_address
@@ -158,13 +157,13 @@ def gen_2of3_multisig_key_pair():
     return get_multisig_address(2, [binascii.unhexlify(key[1]) for key in key_pairs]), key_pairs
 
 
-def spend_multisig_fund(tx_ins, partial_keys, tx_outs):
+def spend_sh_fund(tx_ins, wif_keys, tx_outs):
     """
-    spend multi sig fund
+    spend script hash fund
     the key point of an input comes from multisig address is that,
     its sign script is combined with several individual signs
     :param tx_ins: list with tuple(tx_id, idx, balance, address, redeem_script)
-    :param partial_keys: private keys in wif format,
+    :param wif_keys: private keys in wif format,
         technical should be the same order with the pubkey in redeem script,
         but pycoin has inner control, so here order is not mandatory
     :param tx_outs: balance, receiver_address
@@ -189,7 +188,7 @@ def spend_multisig_fund(tx_ins, partial_keys, tx_outs):
     tx.set_unspents(_un_spent)
 
     # construct hash160_lookup[hash160] = (secret_exponent, public_pair, compressed) for each individual key
-    hash160_lookup = build_hash160_lookup([Key.from_text(wif_key).secret_exponent() for wif_key in partial_keys])
+    hash160_lookup = build_hash160_lookup([Key.from_text(wif_key).secret_exponent() for wif_key in wif_keys])
 
     for i in range(0, len(tx_ins)):
         # you can add some conditions that if the input script is not p2sh type, not provide p2sh_lookup,
@@ -200,59 +199,95 @@ def spend_multisig_fund(tx_ins, partial_keys, tx_outs):
     return tx.as_hex(), tx.id()
 
 
+def pkh_segwit_address_from_wif(wif):
+    """
+    The P2SH redeemScript is always 22 bytes.
+    It starts with a OP_0, followed by a canonical push of the keyhash (i.e. 0x0014{20-byte keyhash})
+
+    Same as any other P2SH, the scriptPubKey is OP_HASH160 hash160(redeemScript) OP_EQUAL
+    """
+    my_key = Key.from_text(wif)
+    script = ScriptPayToAddressWit(b'\0', my_key.hash160()).script()
+    script_hex = binascii.hexlify(script).decode()
+    return address_for_pay_to_script(script, netcode=NET_CODE), script_hex
+
+
 if __name__ == '__main__':
     pri_hex, address = gen_key_pair()
     print('private key in hex format:', pri_hex)
     print('address from compressed public key:', address)
 
-    # print('address from private key:', address_from_pri_hex(pri_hex))
-    #
-    # wif_key, address = gen_key_pair_as_wif()
-    # print('private key in wallet import format:', wif_key)
-    # print('address from compressed public key:', address)
-    #
-    # print('address from private key:', address_from_wif(wif_key))
-    #
-    # (utxo id, utxo index, balance in satoshi, sender address)
-    # tx_ins = [('e7c8e9c6db79a665bbdffd03adaff22ceeb975b00480797561a736de4b5ef575', 0, 20000000,
-    #            'miMz95qmcq3ZHVY6UVQJasMRU2RoxtRaU8'),
-    #           ('cf60e01bfb63b18bc95d9674f026c4109c5215accfee21d9adb5c300c41cce84', 1, 63916800,
-    #            'miMz95qmcq3ZHVY6UVQJasMRU2RoxtRaU8')]
-    # in_keys = ['==>private key in hex format for first input',
-    #            '==>private key in hex format for second input']
-    # tx_outs = [(25000000, 'n3yCWzctsFspunWTKWfBACWvM7ffX3xZLd'),
-    #            (58875500, 'miMz95qmcq3ZHVY6UVQJasMRU2RoxtRaU8')]
-    #
-    # raw_hex, tx_id = p2pkh_tx(tx_ins, in_keys, tx_outs)
-    # print('signed raw hex:')
-    # print(raw_hex)
-    # print('txn id/hash:')
-    # print(tx_id)
-    #
-    # print('calculated txn id:')
-    # print(calculate_txid_from_raw_hex(raw_hex))
+    print('address from private key:', address_from_pri_hex(pri_hex))
 
+    wif_key, address = gen_key_pair_as_wif()
+    print('private key in wallet import format:', wif_key)
+    print('address from compressed public key:', address)
+
+    print('address from private key:', address_from_wif(wif_key))
+
+    # (utxo id, utxo index, balance in satoshi, sender address)
+    tx_ins = [('577ed0c91dfa959f539952e8b4e6e625473260745fd62ea6283c5c3418d94870', 0, 13122,
+               '17SRgFPdFRVdMGxcMkCBCXPvNnCPLg9gWe'),
+              ('67a690184f71ea152ece6728a85aa889d5eb735e4e2fe51c684e8ef8f933a71d', 0, 1573252,
+               '17SRgFPdFRVdMGxcMkCBCXPvNnCPLg9gWe')
+              ]
+    in_keys = ['===>hex format key for input1',
+               '===>hex format key for input2'
+               ]
+    tx_outs = [(1532624, '17SRgFPdFRVdMGxcMkCBCXPvNnCPLg9gWe'),
+               (50000, '3FMyytPExvoc8dV8oeoqoDzqGr8qeEVUGu')
+               ]
+
+    raw_hex, tx_id = spend_pkh_fund(tx_ins, in_keys, tx_outs)
+    print('signed raw hex:')
+    print(raw_hex)
+    print('txn id/hash:')
+    print(tx_id)
+
+    print('calculated txn id:')
+    print(calculate_txid_from_raw_hex(raw_hex))
+
+    # ==============> multi sign, please pay attention here only supports inputs from the same address
     mulsig_info, key_pairs = gen_2of3_multisig_key_pair()
     print('address:', mulsig_info[0])
     print('redeem script:', mulsig_info[1])
     print('partial keys:', key_pairs)
 
-    # redeem_script = '522103f014ab0490259b0dab5f84fa871e7e54845749d054343606813197e531a8c01d' \
-    #                 '210203224e6af552892d416a53be4eaae6c517d99314e9199c1d38936f2e97476690' \
-    #                 '2102dc5a0ba9a71cdf3fd4cba70c0994037ae4fd81b7ac48cbade1f0d73a919d86f953ae'
-    # tx_ins = [('3e0594b046d2109756668d6a2d8fcf25390aeacc00f92087498e286aa8171a03', 0, 200000,
-    #            '3P5ifvQge9pddxVDQQJW7Byk9HKFAWiA5i',
-    #            redeem_script),
-    #           ('eb830cf7ff658f12db6cf7fd8e2b1bee2995a0c1385e65e25cfc74b311b45752', 0, 100000,
-    #            '3P5ifvQge9pddxVDQQJW7Byk9HKFAWiA5i',
-    #            redeem_script)
-    #           ]
-    # partial_keys = ['==>key1',
-    #                 '==>key2']
-    # tx_outs = [(294000, '17SRgFPdFRVdMGxcMkCBCXPvNnCPLg9gWe')]
-    #
-    # raw_hex, tx_id = spend_multisig_fund(tx_ins, partial_keys, tx_outs)
-    # print('signed raw hex:')
-    # print(raw_hex)
-    # print('txn id/hash:')
-    # print(tx_id)
+    redeem_script = '522103f014ab0490259b0dab5f84fa871e7e54845749d054343606813197e531a8c01d' \
+                    '210203224e6af552892d416a53be4eaae6c517d99314e9199c1d38936f2e97476690' \
+                    '2102dc5a0ba9a71cdf3fd4cba70c0994037ae4fd81b7ac48cbade1f0d73a919d86f953ae'
+    tx_ins = [('3e0594b046d2109756668d6a2d8fcf25390aeacc00f92087498e286aa8171a03', 0, 200000,
+               '3P5ifvQge9pddxVDQQJW7Byk9HKFAWiA5i',
+               redeem_script),
+              ('eb830cf7ff658f12db6cf7fd8e2b1bee2995a0c1385e65e25cfc74b311b45752', 0, 100000,
+               '3P5ifvQge9pddxVDQQJW7Byk9HKFAWiA5i',
+               redeem_script)
+              ]
+    # pick two keys from the generated key pairs
+    partial_keys = ['===>wif key1',
+                    '===>wif key2']
+    tx_outs = [(294000, '17SRgFPdFRVdMGxcMkCBCXPvNnCPLg9gWe')]
+
+    raw_hex, tx_id = spend_sh_fund(tx_ins, partial_keys, tx_outs)
+    print('signed raw hex:')
+    print(raw_hex)
+    print('txn id/hash:')
+    print(tx_id)
+
+    # ==============> segwit P2SH-P2WPKH
+    wif_key = '===>'
+    address, redeem = pkh_segwit_address_from_wif(wif_key)
+    print(address, redeem)
+    tx_ins = [('da3ad575437b093fe3d939f549dbec49be4f6b49f121a469f14ea0a9e216ed9c', 1, 50000,
+               '3FMyytPExvoc8dV8oeoqoDzqGr8qeEVUGu', '0014109031aea56f925a006847e1eece20cbd8c632fe')
+              ]
+    in_keys = [wif_key
+               ]
+    tx_outs = [(48070, '17SRgFPdFRVdMGxcMkCBCXPvNnCPLg9gWe')
+               ]
+
+    raw_hex, tx_id = spend_sh_fund(tx_ins, in_keys, tx_outs)
+    print('signed raw hex:')
+    print(raw_hex)
+    print('txn id/hash:')
+    print(tx_id)
