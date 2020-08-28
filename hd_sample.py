@@ -140,7 +140,7 @@ def bip44_eth_external_key(mnemonic, account=0, key_idx=0, passphrase=''):
 
 def bip44_test_external_key(mnemonic, account=0, key_idx=0, passphrase=''):
     """
-    bip44 testnet format m / 44' / 0' / {account}' / 0 / {key_idx}
+    bip44 testnet format m / 44' / 1' / {account}' / 0 / {key_idx}
     :param mnemonic: mnemonic sentence
     :param account: 0 as first account
     :param key_idx: 0 as first key
