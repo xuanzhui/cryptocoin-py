@@ -114,55 +114,6 @@ def tether_tx_flush(tx_ins, private_key, send_amount, receiver):
     return signed_tx.as_hex(), signed_tx.id()
 
 
-# def tether_tx_sh(tx_ins, wif_keys, send_amount, receiver, change_address):
-#     """
-#     spend usdt having p2sh utxo
-#     :param tx_ins: list with tuple(tx_id, idx, balance, address, redeem_script),
-#         redeem_script is required for p2sh utxo, set it None for p2pkh utxo
-#     :param wif_keys: private keys of the inputs
-#     :param send_amount: (display amount) * (10 ** 8)
-#     :param receiver: address to receive usdt
-#     :param change_address: address to receive btc change
-#     """
-#     _txs_in = []
-#     _un_spent = []
-#     total_bal = 0
-#
-#     for tx_id, idx, balance, address, _ in tx_ins:
-#         total_bal += balance
-#
-#         # must h2b_rev NOT h2b
-#         tx_id_b = h2b_rev(tx_id)
-#         _txs_in.append(TxIn(tx_id_b, idx))
-#
-#         _un_spent.append(Spendable(balance, script_obj_from_address(address, netcodes=['BTC']).script(), tx_id_b, idx))
-#
-#     txn_fee = estimate_p2pkh_tx_bytes(len(tx_ins), 3) * recommend_satoshi_per_byte()
-#
-#     _txs_out = [TxOut(total_bal - txn_fee - 546, script_obj_from_address(change_address).script()),
-#                 TxOut(0, binascii.unhexlify(omni_tether_script(send_amount))),
-#                 TxOut(546, script_obj_from_address(receiver).script())]
-#
-#     version, lock_time = 1, 0
-#     tx = Tx(version, _txs_in, _txs_out, lock_time)
-#     tx.set_unspents(_un_spent)
-#
-#     # construct hash160_lookup[hash160] = (secret_exponent, public_pair, compressed) for each individual key
-#     hash160_lookup = build_hash160_lookup([Key.from_text(wif_key).secret_exponent() for wif_key in wif_keys])
-#
-#     for i in range(0, len(tx_ins)):
-#         if tx_ins[i][-1]:
-#             # p2sh_lookup = build_p2sh_lookup([binascii.unhexlify(tx_ins[i][-1])])
-#             # tx.sign_tx_in(hash160_lookup, i, tx.unspents[i].script, hash_type=SIGHASH_ALL, p2sh_lookup=p2sh_lookup)
-#             u_key = Key(secret_exponent=int('bd46417c531c36629aec7ded3c6c7ecd0acace098f47c6b9d82b77728fb477f5', 16),
-#                         prefer_uncompressed=False, netcode='BTC')
-#             tx.txs_in[i].script = u_key.sec()
-#         else:
-#             tx.sign_tx_in(hash160_lookup, i, tx.unspents[i].script, hash_type=SIGHASH_ALL)
-#
-#     return tx.as_hex(), tx.id()
-
-
 if __name__ == '__main__':
     from decimal import Decimal
     from btc_sample import get_utxo, broadcast_raw
@@ -184,40 +135,3 @@ if __name__ == '__main__':
     # print(tx_id)
     #
     # print(broadcast_raw(raw_hex))
-
-    # from pycoin.tx.pay_to import ScriptPayToScript
-    # from pycoin.key import Key
-    #
-    # u_key = Key(secret_exponent=int('bd46417c531c36629aec7ded3c6c7ecd0acace098f47c6b9d82b77728fb477f5', 16),
-    #             prefer_uncompressed=False, netcode='BTC')
-    # u_wif = u_key.wif()
-    #
-    # script = ScriptPayToScript(u_key.hash160())
-    # # print(script.address())
-    # redeem = binascii.hexlify(script.script()).decode()
-    # print(binascii.hexlify(u_key.sec()))
-    #
-    # b_key = Key(secret_exponent=int('9e50b3e179eda7d988db33919ebac1464710de58cae1862c3e853c90692e3e76', 16),
-    #             prefer_uncompressed=False, netcode='BTC')
-    # b_wif = b_key.wif()
-    # # print(b_key.address())
-    # # print(b_wif)
-    #
-    # tx_ins = [('90c54d534ba78b30f2bb2dd0adb38cc7fbe48e8ce429068dc2135a69740f8067', 2, 540,
-    #            '3Kuqjvvz81aRdiYnSJHSx5re2cCh1z3qfW', binascii.hexlify(u_key.sec())),
-    #           ('95fee62879f768184254f5775352d4743460223ae269547c03a215ed6656b74f', 0, 139986,
-    #            '1PYQsxk5GoWc3bL9TQMQwpvnHWa6btetUK', None)
-    #           ]
-    # in_keys = [u_wif,
-    #            b_wif
-    #            ]
-    #
-    # raw_hex, tx_id = tether_tx_sh(tx_ins,
-    #                               in_keys,
-    #                               int(Decimal('0.1') * Decimal(10 ** 8)),
-    #                               '17LNm71xoEvF5h3KuqhcNAsCnPnFSDWUJT',
-    #                               '1PYQsxk5GoWc3bL9TQMQwpvnHWa6btetUK')
-    # print('signed raw hex:')
-    # print(raw_hex)
-    # print('txn id/hash:')
-    # print(tx_id)
