@@ -7,6 +7,7 @@ pip install web3
 
 import web3
 import eth_utils
+import requests
 
 # 1 as MainNet, 3 as Ropsten TestNet
 CHAIN_ID = 1
@@ -63,6 +64,19 @@ def generate_token_transaction(to_addr, token_amount, gas_price_wei, nonce, priv
     signed_tx = web3.Account.signTransaction(txn, private_key)
 
     return signed_tx.rawTransaction.hex(), signed_tx.hash.hex()
+
+
+def send_raw_txn_etherscan_node(raw_txn):
+    send_data = {'module': 'proxy', 'action': 'eth_sendRawTransaction',
+                 'hex': raw_txn, 'apikey': 'YZ1ZBQIMIS5UG5MCCJ3VU9JYBVFENPRCNK'}
+    resp = requests.post('https://api.etherscan.io/api', data=send_data)
+
+    if resp.status_code == 200:
+        res_map = resp.json()
+        if res_map and res_map.get('result'):
+            return 'succ', res_map.get('result')
+
+    return 'err', resp.text
 
 
 if __name__ == '__main__':

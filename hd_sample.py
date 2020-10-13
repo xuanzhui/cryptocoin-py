@@ -3,13 +3,13 @@
 hierarchical deterministic, combine bip32 bip39 bip43 bip44
 
 has dependency of pycoin, mnemonic
-for simplified chinese support, you may would like to check fork
+
 https://github.com/xuanzhui/python-mnemonic
 """
 
-from pycoin.key.BIP32Node import BIP32Node
 import binascii
 from mnemonic import Mnemonic
+from pycoin.networks.registry import network_for_netcode
 
 """
 The following table describes the relation between the initial entropy length (ENT),
@@ -50,26 +50,28 @@ def mnemonic_to_hex_seed(mnemonic, passphrase=''):
     return binascii.hexlify(master_seed).decode()
 
 
-def mnemonic_to_bip32_node(mnemonic, passphrase='', netcode='BTC'):
+def mnemonic_to_bip32_node(mnemonic, passphrase='', net_code='BTC'):
     """
     mnemonic sentence to bip32 node
     :param mnemonic: mnemonic sentence
     :param passphrase: used for PBKDF2 salt('mnemonic' + passphrase)
-    :param netcode: 'BTC' => "mainnet", 'XTN' => "testnet3"
+    :param net_code: 'BTC' => "mainnet", 'XTN' => "testnet3"
     """
     master_seed = Mnemonic.to_seed(mnemonic, passphrase=passphrase)
-    return BIP32Node.from_master_secret(master_seed, netcode=netcode)
+    network = network_for_netcode(net_code)
+    return network.keys.bip32_seed(master_seed)
 
 
-def mnemonic_to_bip32_hwif(mnemonic, passphrase='', netcode='BTC'):
+def mnemonic_to_bip32_hwif(mnemonic, passphrase='', net_code='BTC'):
     """
     mnemonic sentence to bip32 private key format which starts with 'xprv'
     :param mnemonic: mnemonic sentence
     :param passphrase: used for PBKDF2 salt('mnemonic' + passphrase)
-    :param netcode: 'BTC' => "mainnet", 'XTN' => "testnet3"
+    :param net_code: BTC or XTN(test net)
     """
     master_seed = Mnemonic.to_seed(mnemonic, passphrase=passphrase)
-    master = BIP32Node.from_master_secret(master_seed, netcode=netcode)
+    network = network_for_netcode(net_code)
+    master = network.keys.bip32_seed(master_seed)
     return master.hwif(as_private=True)
 
 
@@ -82,7 +84,8 @@ def bip44_btc_account(mnemonic, account=0, passphrase=''):
     :param passphrase: used for PBKDF2 salt('mnemonic' + passphrase)
     """
     master_seed = Mnemonic.to_seed(mnemonic, passphrase=passphrase)
-    master = BIP32Node.from_master_secret(master_seed)
+    network = network_for_netcode('BTC')
+    master = network.keys.bip32_seed(master_seed)
     return master.subkey_for_path(f'44H/0H/{account}H')
 
 
@@ -95,7 +98,9 @@ def bip44_eth_account(mnemonic, account=0, passphrase=''):
     :param passphrase: used for PBKDF2 salt('mnemonic' + passphrase)
     """
     master_seed = Mnemonic.to_seed(mnemonic, passphrase=passphrase)
-    master = BIP32Node.from_master_secret(master_seed)
+    # we just need the private key, BTC symbol will not used to generate address for ETH
+    network = network_for_netcode('BTC')
+    master = network.keys.bip32_seed(master_seed)
     return master.subkey_for_path(f'44H/60H/{account}H')
 
 
@@ -108,7 +113,8 @@ def bip44_test_account(mnemonic, account=0, passphrase=''):
     :param passphrase: used for PBKDF2 salt('mnemonic' + passphrase)
     """
     master_seed = Mnemonic.to_seed(mnemonic, passphrase=passphrase)
-    master = BIP32Node.from_master_secret(master_seed, netcode='XTN')
+    network = network_for_netcode('XTN')
+    master = network.keys.bip32_seed(master_seed)
     return master.subkey_for_path(f'44H/1H/{account}H')
 
 
@@ -121,7 +127,8 @@ def bip44_btc_external_key(mnemonic, account=0, key_idx=0, passphrase=''):
     :param passphrase: used for PBKDF2 salt('mnemonic' + passphrase)
     """
     master_seed = Mnemonic.to_seed(mnemonic, passphrase=passphrase)
-    master = BIP32Node.from_master_secret(master_seed)
+    network = network_for_netcode('BTC')
+    master = network.keys.bip32_seed(master_seed)
     return master.subkey_for_path(f'44H/0H/{account}H/0/{key_idx}')
 
 
@@ -134,7 +141,9 @@ def bip44_eth_external_key(mnemonic, account=0, key_idx=0, passphrase=''):
     :param passphrase: used for PBKDF2 salt('mnemonic' + passphrase)
     """
     master_seed = Mnemonic.to_seed(mnemonic, passphrase=passphrase)
-    master = BIP32Node.from_master_secret(master_seed)
+    # we just need the private key, BTC symbol will not used to generate address for ETH
+    network = network_for_netcode('BTC')
+    master = network.keys.bip32_seed(master_seed)
     return master.subkey_for_path(f'44H/60H/{account}H/0/{key_idx}')
 
 
@@ -147,7 +156,8 @@ def bip44_test_external_key(mnemonic, account=0, key_idx=0, passphrase=''):
     :param passphrase: used for PBKDF2 salt('mnemonic' + passphrase)
     """
     master_seed = Mnemonic.to_seed(mnemonic, passphrase=passphrase)
-    master = BIP32Node.from_master_secret(master_seed, netcode='XTN')
+    network = network_for_netcode('XTN')
+    master = network.keys.bip32_seed(master_seed)
     return master.subkey_for_path(f'44H/1H/{account}H/0/{key_idx}')
 
 
@@ -155,13 +165,15 @@ def external_key_from_account(account, key_idx=0):
     return account.subkey_for_path(f'0/{key_idx}')
 
 
-def external_key_from_account_hwif(hwif, key_idx=0):
+def external_key_from_account_hwif(hwif, key_idx=0, net_code='BTC'):
     """
     path 0 / {key_idx}
     :param hwif: bip32 private key format
     :param key_idx: 0 as first key
+    :param net_code: hwif corresponding net code
     """
-    node = BIP32Node.from_hwif(hwif)
+    network = network_for_netcode(net_code)
+    node = network.parse.bip32(hwif)
     return node.subkey_for_path(f'0/{key_idx}')
 
 
@@ -180,7 +192,7 @@ if __name__ == '__main__':
 
     master = mnemonic_to_bip32_node(seed_str)
     account2_key1 = master.subkey_for_path('44H/0H/2H/0/1')
-    print('account2 address1:', account2_key1.address(use_uncompressed=False))
+    print('account2 address1:', account2_key1.address())
     print('account2 address1 private key:', account2_key1.wif())
 
     account2 = bip44_btc_account(seed_str, account=2)
@@ -188,7 +200,7 @@ if __name__ == '__main__':
     print('account2 extended private key:', account2_hwif)
 
     account2_key1_1 = external_key_from_account_hwif(account2_hwif, key_idx=1)
-    print('account2 address1:', account2_key1_1.address(use_uncompressed=False))
+    print('account2 address1:', account2_key1_1.address())
     print('account2 address1 private key:', account2_key1_1.wif())
 
     print('================ eth ================')
@@ -201,13 +213,14 @@ if __name__ == '__main__':
     pri_key = eth_acc3_key2.secret_exponent()
 
     import web3
+
     print('private hex:', hex(pri_key))
     real_acc = web3.Account.privateKeyToAccount(pri_key)
     print('eth address:', real_acc.address)
     print('private key:', '0x' + binascii.hexlify(real_acc.privateKey).decode())
 
     print('================ testnet ================')
-    print('bip32 root:', mnemonic_to_bip32_hwif(ch_seed_str, passphrase='开心', netcode='XTN'))
+    print('bip32 root:', mnemonic_to_bip32_hwif(ch_seed_str, passphrase='开心', net_code='XTN'))
     test_account2_key1 = bip44_test_external_key(ch_seed_str, account=3, key_idx=2, passphrase='开心')
-    print('account2 address1:', test_account2_key1.address(use_uncompressed=False))
+    print('account2 address1:', test_account2_key1.address())
     print('account2 address1 private key:', test_account2_key1.wif())
