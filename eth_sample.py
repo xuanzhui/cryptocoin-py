@@ -68,7 +68,7 @@ def generate_token_transaction(to_addr, token_amount, gas_price_wei, nonce, priv
 
 def send_raw_txn_etherscan_node(raw_txn):
     send_data = {'module': 'proxy', 'action': 'eth_sendRawTransaction',
-                 'hex': raw_txn, 'apikey': 'YZ1ZBQIMIS5UG5MCCJ3VU9JYBVFENPRCNK'}
+                 'hex': raw_txn, 'apikey': 'api key from etherscan'}
     resp = requests.post('https://api.etherscan.io/api', data=send_data)
 
     if resp.status_code == 200:
